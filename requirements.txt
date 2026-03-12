@@ -1,0 +1,4 @@
+streamlit
+instagrapi
+pandas
+sqlite3
