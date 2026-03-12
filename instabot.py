@@ -21,7 +21,6 @@ st.markdown(
 )
 
 # --- 2. SUPABASE CONFIGURATION ---
-# These MUST be in your Streamlit Cloud Secrets
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
@@ -48,7 +47,7 @@ if 'user_email' not in st.session_state:
 if 'admin_auth' not in st.session_state:
     st.session_state.admin_auth = False
 
-# --- 5. THE LOBBY (Login with Session Bypass) ---
+# --- 5. THE LOBBY ---
 if st.session_state.page == "lobby":
     st.title("👑 Queen Bot Lobby")
     st.info("Log in to join the bot pool and earn coins.")
@@ -63,8 +62,6 @@ if st.session_state.page == "lobby":
                 try:
                     with st.spinner("Syncing with Instagram..."):
                         bot = Client()
-                        
-                        # Session logic to prevent "Challenge Required"
                         session_dir = "sessions"
                         if not os.path.exists(session_dir):
                             os.makedirs(session_dir)
@@ -76,14 +73,12 @@ if st.session_state.page == "lobby":
                         bot.login(u_insta, p_insta)
                         bot.dump_settings(session_path)
 
-                        # Save to Supabase
                         supabase.table("linked_accounts").upsert({
                             "username": u_insta,
                             "password": p_insta,
                             "owner_email": email_in
                         }).execute()
                         
-                        # Ensure user profile exists
                         user_check = supabase.table("users").select("*").eq("email", email_in).execute()
                         if not user_check.data:
                             supabase.table("users").insert({"email": email_in, "coins": 100}).execute()
@@ -95,13 +90,12 @@ if st.session_state.page == "lobby":
                     
                 except Exception as e:
                     if "challenge_required" in str(e).lower():
-                        st.error("❌ Security Challenge! Log in on your Instagram app first, click 'This Was Me', then try here again.")
+                        st.error("❌ Security Challenge! Click 'This Was Me' on Instagram app, then try again.")
                     else:
                         st.error(f"❌ Error: {e}")
 
 # --- 6. THE DASHBOARD ---
 elif st.session_state.page == "dashboard":
-    # Sidebar
     st.sidebar.title("💎 Queen Dashboard")
     user_bal = get_coins(st.session_state.user_email)
     st.sidebar.markdown(f"### Balance: `💰 {user_bal}`")
@@ -111,9 +105,17 @@ elif st.session_state.page == "dashboard":
         st.session_state.page = "lobby"
         st.rerun()
 
-    menu = st.sidebar.radio("Navigation", ["🎁 Daily Bonus", "🏆 Leaderboard", "🤑 Earn Coins", "🔐 Admin Panel"])
+    # --- UPDATED MENU LIST ---
+    menu = st.sidebar.radio("Navigation", [
+        "🎁 Daily Bonus", 
+        "👥 Get Followers", 
+        "🤑 Earn Coins", 
+        "🔍 Super Scan", 
+        "🔥 Post Booster", 
+        "🏆 Leaderboard", 
+        "🔐 Admin Panel"
+    ])
     
-    # --- ADMIN PANEL ---
     if menu == "🔐 Admin Panel":
         st.header("🔐 Admin Dashboard")
         if not st.session_state.admin_auth:
@@ -125,7 +127,6 @@ elif st.session_state.page == "dashboard":
                 else:
                     st.error("Incorrect Key")
         else:
-            # Metrics
             total_bots = supabase.table("linked_accounts").select("*", count="exact").execute().count
             total_users = supabase.table("users").select("*", count="exact").execute().count
             
@@ -134,23 +135,26 @@ elif st.session_state.page == "dashboard":
             col2.metric("Total Users", total_users)
             
             st.divider()
-            st.subheader("Manual Coin Adjust")
             target_user = st.text_input("Target Email")
-            adj_amt = st.number_input("Amount (use - for removal)", step=10)
+            adj_amt = st.number_input("Amount", step=10)
             if st.button("Execute Change"):
                 update_coins(target_user, adj_amt)
                 st.success("Transaction Complete.")
 
-    # --- CONTENT LOADER ---
     else:
+        # --- FULL PAGE MAPPING ---
         pages = {
             "🎁 Daily Bonus": "daily_bonus.py", 
-            "🏆 Leaderboard": "leaderboard.py", 
-            "🤑 Earn Coins": "earn.py"
+            "👥 Get Followers": "followers.py", 
+            "🤑 Earn Coins": "earn.py", 
+            "🔍 Super Scan": "scan.py", 
+            "🔥 Post Booster": "booster.py",
+            "🏆 Leaderboard": "leaderboard.py"
         }
+        
         current_page = pages[menu]
         if os.path.exists(current_page):
             # Pass Supabase connection to sub-scripts
             exec(open(current_page, encoding="utf-8").read())
         else:
-            st.error(f"Module {current_page} missing on server.")
+            st.error(f"⚠️ Module '{current_page}' not found. Please upload it to GitHub.")
