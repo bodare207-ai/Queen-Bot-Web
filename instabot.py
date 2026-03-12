@@ -158,3 +158,4 @@ elif st.session_state.page == "dashboard":
             exec(open(current_page, encoding="utf-8").read())
         else:
             st.error(f"⚠️ Module '{current_page}' not found. Please upload it to GitHub.")
+
